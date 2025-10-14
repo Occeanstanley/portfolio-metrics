@@ -1,1 +1,55 @@
+name: Update Portfolio Metrics
+
+on:
+  schedule:
+    - cron: "0 12 * * *"   # daily at 12:00 UTC
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install requests pandas scikit-learn
+
+      - name: Fetch GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_USERNAME: occeanstanley9
+        run: python scripts/fetch_github.py
+
+      - name: Fetch HuggingFace
+        env:
+          HF_USERNAME: occeanstanley9
+        run: python scripts/fetch_hf.py
+
+      - name: Ensure Tableau CSV exists
+        run: python scripts/fetch_tableau.py
+
+      - name: Fetch LinkedIn metrics (from Google Sheet CSV)
+        env:
+          LINKEDIN_CSV_URL: ${{ secrets.LINKEDIN_CSV_URL }}
+        run: python scripts/fetch_linkedin.py
+
+      - name: Combine for Power BI
+        run: python scripts/combine_for_powerbi.py
+
+      - name: (Optional) Forecast next 30 days commits
+        run: python scripts/forecast_commits.py || true
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add data/*.csv
+          git commit -m "auto: refresh metrics" || echo "No changes to commit"
+          git push
 
